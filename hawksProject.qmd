@@ -1,0 +1,220 @@
+---
+title: "HawksProject"
+format: pdf
+execute: 
+  echo: false
+  message: false
+  warning: false
+  column: screen
+editor: visual
+---
+
+```{r}
+#| label: load-packages
+library(tidyverse)
+library(dplyr)
+library(ggrepel)
+```
+
+```{r}
+#| label: load-data
+draft_data <- read.csv('nbaplayersdraft.csv')
+# Combine all franchise data
+draft_data <- draft_data |>
+        mutate(team = ifelse(team == "SEA", "OKC", team),
+               team = ifelse(team == "WSB", "WAS", team),
+               team = ifelse(team == "NJN", "BRK", team),
+               team = ifelse(team == "CHH", "CHO", team),
+               team = ifelse(team == "CHA", "CHO", team),
+               team = ifelse(team == "NOK", "NOP", team),
+               team = ifelse(team == "NOH", "NOP", team),
+               team = ifelse(team == "VAN", "MEM", team),
+               value_over_replacement = ifelse(is.na(value_over_replacement), -2, value_over_replacement))
+```
+
+## Part 1
+
+```{r}
+#| label: wrangling-duke-players
+#| eval: false
+draft_data |>
+        mutate(team = ifelse(team == "SEA", "OKC", team)) |>
+        filter(college == "Duke" &
+               year <= 2000) |>
+        group_by(team) |>
+        summarise(Count = n()) |>
+        top_n(n = 1, wt = Count) |>
+        pull(team)
+
+read.csv('nbaplayersdraft.csv') |>
+        mutate(team = ifelse(team == "SEA", "OKC", team)) |>
+        filter(college == "Duke" &
+               year <= 2000) |>
+        group_by(team) |>
+        summarise(Count = n()) |>
+        top_n(n = 1, wt = Count) |> 
+        pull(team)
+
+# top_n function idea from chatGPT
+```
+
+The three teams who drafted the most players from Duke between 1989 and 2000 (inclusive) were the Dallas Mavericks, Minnesota Timberwolves, and Phoenix Suns.
+
+```{r}
+#| label: wrangling-by-name
+#| eval: false
+draft_data |>
+        filter(substr(player, 1, 1) == "D" &
+               year %% 2 == 0) |>
+        group_by(team) |>
+        summarise(Count = n()) |>
+        top_n(n = 1, wt = Count) |> # top_n function idea from chatGPT
+        pull(team)
+
+read.csv('nbaplayersdraft.csv') |>
+        filter(substr(player, 1, 1) == "D" &
+               year %% 2 == 0) |>
+        group_by(team) |>
+        summarise(Count = n()) |>
+        top_n(n = 1, wt = Count) |> 
+        pull(team)
+
+# top_n function idea from chatGPT
+```
+
+The three teams who drafted the most players whose first name starts with the letter D and were drafted in an even year were. (Note: if OKC and Seattle were not combined then the correct answer would have been the Boston Celtics, Milwaukee Bucks, and Seattle Supersonics).
+
+```{r}
+#| label: pick-relationship
+
+draft_data |>
+        select(year, overall_pick, team) |>
+        mutate(max_pick = case_when(
+               year <= 1994 ~ 27,
+               year <= 2004 ~ 29,
+               TRUE ~ 30
+        )) |>
+        filter(overall_pick <= max_pick) |>
+        distinct(year, team, .keep_all = TRUE) |>
+        group_by(team) |>
+        mutate(next_pick_slot = lead(overall_pick)) |>
+        ungroup() |>
+        group_by(overall_pick) |>
+        summarise(overall_pick = overall_pick,
+                  mean_next_year_pick = mean(next_pick_slot, na.rm = TRUE)) |>
+        distinct() |>
+        ggplot(aes(x=overall_pick, y=mean_next_year_pick)) +
+        geom_col(fill = "#FDB927",
+                 alpha = 0.5) +
+        geom_text(aes(label=round(mean_next_year_pick, 1)),
+                        nudge_y = 0.5,
+                        size=2.2,
+                        color = "#C8102E",
+                        fontface = "bold") +
+        geom_text(aes(label=round(overall_pick, 1)),
+                        nudge_y = -0.5,
+                        size=2.5,
+                        color = "black") +
+        labs(x="Pick Number",
+             y="Average Following Year Pick",
+             title="Pick number remains generally the same from year to year,\non average",
+             subtitle="Red number is average following year pick number\nBlack one is current year pick") +
+        theme_minimal() +
+        theme(plot.subtitle = element_text(size = 10),
+              panel.grid = element_blank(),
+              axis.text = element_blank()) +
+        coord_cartesian(ylim = c(5, 25))
+
+# Used ChatGPT to figure out how to position the text in the plot correctly (using nudge_y)
+```
+
+As we can see from the plot above, there is a relatively strong positive linear relationship between the current year and following year first round pick number for a certain team. However, teams drafting in the top ten are expected to improve the following year, on average, and end up with a lower pick in the subsequent draft, and the opposite looks to be true for most of teams that are outside of the lottery, also on average. One other interesting finding is that teams picking 4-7 end up with next year draft picks that are higher, on average, than the top three picks obtain. It is possible that the bottom seven teams are often similar in how good they are, and the difference between the value of the top three picks and the next four are substantial enough to affect the average next year draft position.
+
+## Part 2
+
+```{r}
+draft_data |>
+        group_by(overall_pick) |>
+        filter(overall_pick <= 30) |>
+        summarise(med_vorp = median(value_over_replacement),
+                  mean_vorp = mean(value_over_replacement)) |>
+        pivot_longer(cols = c(med_vorp, mean_vorp), names_to = "type", values_to = "value") |>
+        ggplot(aes(x = overall_pick, y = value, fill = type)) +
+        geom_bar(stat = "identity", position = "dodge") +
+        labs(title = "Mean VORP always greater than median VORP\nin the first round",
+             x = "Pick Number",
+             y = "VORP",
+             fill = "") +
+        theme_minimal() +
+        theme(panel.grid.minor = element_blank()) +
+        scale_fill_manual(values = c("med_vorp" = "#C8102E", "mean_vorp" = "#FDB927"),
+                    labels = c("Mean", "Median"),
+                    guide = guide_legend(title = NULL))
+
+# Used ChatGPT to remember how to create the grouped bars
+```
+
+The metric I will be using to evaluate each draft slot will be with the median VORP value of that specific slot among all values in the dataset. I made all NAs in the dataset (for players who never played in the league) -2, since this is the replacement level VORP value, and these drafted players who were unable to get minutes likely would have been replacement level, on average. I chose VORP because it was one of the few metrics provided which attempt to model a player's overall value from box score stats alone, and has advantages over the other two similar metrics. I chose it over win shares since it is based on BPM, which performed better than win shares in a player metric comparison from dunksandthrees.com, and over BPM itself to account for career longevity since BPM is an efficiency stat while VORP is a counting stat. Once I settled on VORP, I wanted to choose between using the median or mean value across drafts for my analysis. From the above graph, we can see that the mean VORP for a given draft slot in the first round (only plotted first round for graph clarity) will always be greater than the corresponding median VORP, which makes sense as most players who are net negatives will not be played nearly as much as those who are positives to their team, and thus their VORP will not build up as much over time. This is also shown by the average career VORP of players in this dataset being `r round(mean(draft_data$value_over_replacement), 2)`, which is greater than zero.
+
+```{r}
+#| label: nba-team-analysis
+pick_med_vorp <- draft_data |>
+        group_by(overall_pick) |>
+        summarise(med_vorp = median(value_over_replacement))
+
+draft_data |>
+        left_join(pick_med_vorp) |>
+        mutate(vorp_diff = value_over_replacement - med_vorp) |>
+        group_by(team) |>
+        summarise(mean_vorp_diff = mean(vorp_diff)) |>
+        ggplot(aes(x = reorder(team, mean_vorp_diff),
+                   y = mean_vorp_diff,
+                   fill = mean_vorp_diff)) +
+        geom_col() +
+        coord_flip() +
+        theme_minimal() +
+        theme(panel.grid.minor = element_blank(),
+              panel.grid.major.y = element_blank(),
+              axis.text.y = element_text(size = 6.75)) +
+        scale_fill_gradient(low = "red",  high = "green") +
+        labs(x = "Team",
+             y = "Mean VORP Difference",
+             fill = "Average median\nVORP Difference\nover expected value",
+             title = "NBA Teams Drafting Ability",
+             subtitle = "Accounting for draft pick number")
+
+# Used ChatGPT to remember how to reorder the columns (with reorder() function)
+```
+
+The above graph uses the average difference in median VORP to evaluate the relative draft success of each NBA team. This value was calculated by evaluating the difference between the VORP of a draft pick and then taking the average of these values for each team, respectively. From the graph, we can see that the three best teams at drafting according to this metric are OKC, Cleveland, and New Orleans, and the three worst teams are the Clipper, Wizards, and Mavericks.
+
+```{r}
+#| label: college-team-analysis
+draft_data |>
+        left_join(pick_med_vorp) |>
+        mutate(vorp_diff = value_over_replacement - med_vorp) |>
+        group_by(college) |>
+        summarise(mean_vorp_diff = mean(vorp_diff),
+                  count = n()) |>
+        filter(count >= 10) |>
+        arrange(desc(mean_vorp_diff)) |>
+        head(10) |>
+        ggplot(aes(x = reorder(college, mean_vorp_diff),
+                   y = mean_vorp_diff)) +
+        geom_col(fill = "#C8102E") +
+        coord_flip() +
+        theme_minimal() +
+        theme(panel.grid.minor = element_blank(),
+              panel.grid.major.y = element_blank()) +
+        labs(x = "College",
+             y = "Mean VORP Difference",
+             fill = "Average median\nVORP Difference\nover expected value",
+             title = "Best colleges at producing players\nwho exceed expections",
+             subtitle = "Accounting for draft pick number")
+
+# Used ChatGPT to remember how to reorder the columns (with reorder() function)
+```
+
+I used a very similar process to evaluating the NBA teams as I did in seeing which college teams had the most over performance in their draft picks. Here Wake Forest stands out as the team having the most over performance, mainly due to producing two legends in Chris Paul and Tim Duncan.
+
+One area of my project that could be improved with future work is to do two different sets of analysis for lottery and non-lottery picks. I think that being able to draft well at the top end of the draft may be fairly different than the ability to find and develop gems later on, and it would be interesting to see if this is the case based on the data available in this study. Also, if as a part of further research I was allowed to use additional data sources, I would replicate the study using a metric such as Estimated Plus Minus since it incorporates player tracking data (since it has been available) and can be a more accurate measure of overall player success. Lastly, I would try to dive more into how I could include measures to reduce outlier influence if continuing with median VORP as the evaluation variable, by potentially limiting all VORP to an arbitrary maximum number to try and get a better sense of which teams overperform the most in the draft by limiting the effect generational players have on the results.
