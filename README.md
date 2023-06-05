@@ -9,4 +9,4 @@ In quarto document which was used to generate the pdf.
 Contains project report.
 
 #### Resume
-Contains my updated resume.
+Contains my updated resume (file name is "Ben Thorpe Sports Resume").
