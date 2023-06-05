@@ -3,7 +3,7 @@
 ### Contents:
 
 #### Code
-In quarto document which was used to generate the pdf.
+In quarto document.
 
 #### PDF
 Contains project report.
