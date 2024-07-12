@@ -1,5 +1,7 @@
 # Hawks Intern Project
 
+## Completed as part of my application to an internship with the Atlanta Hawks
+
 ### Contents:
 
 #### Code
