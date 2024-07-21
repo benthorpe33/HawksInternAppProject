@@ -1,6 +1,6 @@
 # Hawks Intern Project
 
-## Completed as part of my application to an internship with the Atlanta Hawks
+## Completed as part of my application to an internship with the Atlanta Hawks for summer 2023
 
 ### Contents:
 
